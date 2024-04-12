@@ -12,19 +12,19 @@
 
 __global__ void mergeBig_k(int *A, int *B, int *M, int *A_idx, int *B_idx){
 
-	// Mémoire shared sur laquelle nous allons travaillé
-	__shared__ int A_shared[1024];
-	__shared__ int B_shared[1024];
+	// Shared memory on which we will work
+	__shared__ int A_shared[1024]; // SIZEA / block size 
+	__shared__ int B_shared[1024]; // SIZEB / block size
 
 	__shared__ int biaisA;
 	__shared__ int biaisB;
 
-	// (endA-startA) : taille de A dans la partition
-	// (endB-startB) : taille de B dans la partition
+	// (endA-startA) : size of A in partition
+	// (endB-startB) : size of B in partition
 	int startA, endA;
 	int startB, endB;
 	
-	// On récupére les index du début et de la fin de A et B par rapport au tableau global
+	// We retrieve the indexes of the start and end of A and B in relation to the global table
 	if (blockIdx.x == 0){
 		startA = 0;
 		endA = A_idx[blockIdx.x];
@@ -44,25 +44,25 @@ __global__ void mergeBig_k(int *A, int *B, int *M, int *A_idx, int *B_idx){
 		endB = B_idx[blockIdx.x];
 	}
 
-	// Notations de l'article
-	// Il y a N élements à fusioner
-	// N = SIZEA + SIZEB 
-	// Chaque partition contient N/p éléments, chaque bloc traite une partition
+	// Article ratings
+	// There are N elements to merge
+	// N = SIZEA + SIZEB
+	// Each partition contains N/p elements, each block processes a partition
 	// N / p = (endB-startB) + (endA-startA) = (SIZEA+SIZEB) / N_BLOCKS
-	// Si Z est le nombre de threads
-	// On va fusioner Z éléments à la fois
-	// Donc on a besoin de le faire (N / p) / Z fois
-	// On va faire bouger la fenetre glissante (N / p) / Z fois
+	// If Z is the number of threads
+	// We are going to merge Z elements at a time
+	// So we need to do it (N / p) / Z times
+	// We are going to move the sliding window (N / p) / Z times
 	int iter_max = (blockDim.x - 1 + (endB-startB) + (endA-startA)) / blockDim.x;
 	int iter = 0;
 
 	biaisA = 0;
 	biaisB = 0;
 	do{
-		// Pour synchroniser les biais
+		// To synchronize the biases
 		__syncthreads();
 
-		// Chargement des valeurs dans la mémoire shared
+		// Loading values ​​into shared memory
 		if (startA + biaisA + threadIdx.x < endA){
 			A_shared[threadIdx.x] = A[startA + biaisA + threadIdx.x];
 		}
@@ -71,12 +71,12 @@ __global__ void mergeBig_k(int *A, int *B, int *M, int *A_idx, int *B_idx){
 			B_shared[threadIdx.x] = B[startB + biaisB + threadIdx.x];	
 		}
 
-		// Pour synchroniser la mémoire shared
+		// To synchronize shared memory
 		__syncthreads();
 
-		// Récuperer la taille de la fenetre glissante
-		// En général c'est le nombre de threads (blockDim.x), i.e On est dans un carré Z * Z normalement
-		// Mais la taille peut être inférieure si il y a moins de blockDim.x éléments à charger
+		// Get the size of the sliding window
+		// In general it is the number of threads (blockDim.x), i.e. We are in a Z * Z square normally
+		// But the size can be smaller if there are fewer blockDim.x elements to load
 		int sizeAshared = endA-startA - biaisA;
 		int sizeBshared = endB-startB - biaisB;
 		if (sizeAshared < 0)
@@ -117,11 +117,11 @@ __global__ void mergeBig_k(int *A, int *B, int *M, int *A_idx, int *B_idx){
 						int idx = startA + startB + i + iter * blockDim.x;
 						if (Q[Y] < sizeAshared && (Q[X] == sizeBshared || A_shared[Q[Y]] <= B_shared[Q[X]]) ) {
 							M[idx] = A_shared[Q[Y]];
-							atomicAdd(&biaisA, 1);	// Biais à incrementer 
+							atomicAdd(&biaisA, 1);	//  Bias to increment 
 						}
 						else {
 							M[idx] = B_shared[Q[X]];
-							atomicAdd(&biaisB, 1); // Biais à incrementer
+							atomicAdd(&biaisB, 1); //  Bias to increment
 						}
 						//printf("blockIdx.x = %d threadIdx.x = %d idx = %d m = %d biaisA = %d\n", blockIdx.x, threadIdx.x, idx, M[idx], biaisA);
 						break ;
@@ -214,19 +214,19 @@ int main(){
 	int B_idx[N_BLOCKS];			// Merge path
 	int *aDevice, *bDevice, *mDevice, *A_idxDevice, *B_idxDevice;
 
-	// Allocation de la mémoire globale du GPU
+	// GPU global memory allocation
 	cudaMalloc( (void**) &aDevice, SIZEA * sizeof(int) );
 	cudaMalloc( (void**) &bDevice, SIZEB * sizeof(int) );
-	cudaMalloc( (void**) &mDevice, (SIZEA+SIZEB) * sizeof(int) );
+	cudaMalloc( (void**) & , (SIZEA+SIZEB) * sizeof(int) );
 	cudaMalloc( (void**) &A_idxDevice, N_BLOCKS * sizeof(int) );
 	cudaMalloc( (void**) &B_idxDevice, N_BLOCKS * sizeof(int) );
 
-	// Copier les tableaux vers le GPU
+	// Copy arrays to GPU
 	cudaMemcpy( aDevice, A, SIZEA * sizeof(int), cudaMemcpyHostToDevice );
 	cudaMemcpy( bDevice, B, SIZEB * sizeof(int), cudaMemcpyHostToDevice );
 
 	// Run the kernel to find an array partition
-	// (SIZEA+SIZEB) / N_BLOCKS elements to process for each block in the second kernel
+	// (SIZEA+SIZEB) / N_BLOCKS elements to process for each block in the kernel
 	pathBig_k<<<N_BLOCKS, 1>>>(aDevice, bDevice, mDevice, A_idxDevice, B_idxDevice);
 
 //	cudaMemcpy( mHost, mDevice, (SIZEA+SIZEB) * sizeof(int), cudaMemcpyDeviceToHost );
@@ -239,17 +239,15 @@ int main(){
 //	cudaMemcpy( A_idxDevice, A_idx, N_BLOCKS * sizeof(int), cudaMemcpyHostToDevice );
 //	cudaMemcpy( B_idxDevice, B_idx, N_BLOCKS * sizeof(int), cudaMemcpyHostToDevice );
 
-	// (SIZEA+SIZEB) / N_BLOCKS elements à traiter pour chaque bloc dans le second kernel
-	// Fenetre glissante pour charger les éléménts dans la mémoire shared
+	// Sliding window to load elements into shared memory
 	mergeBig_k<<<N_BLOCKS, N_THREADS>>>(aDevice, bDevice, mDevice, A_idxDevice, B_idxDevice);
 
-	// Copier le tableau résultat vers le CPU, puis affichage
 	cudaMemcpy( mHost, mDevice, (SIZEA+SIZEB) * sizeof(int), cudaMemcpyDeviceToHost );
 	for (int i = 0; i < SIZEA+SIZEB; i ++){
 		printf("m[%d] = %d\n", i, mHost[i]);
 	}
 
-	// Liberation de la mémoire
+
 	free(A);
 	free(B);
 	cudaFree(aDevice);
