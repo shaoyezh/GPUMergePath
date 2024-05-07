@@ -172,7 +172,7 @@ __global__ void pathBig_k(int *A, int *B, int *M, int *A_idx, int *B_idx){
 		int offset = (abs(K[Y] - P[Y]))/2;  // (atop - abottom) / 2
 		int Q[2] = {K[X] + offset, K[Y] - offset};
 
-		if (Q[Y] >= 0 && Q[X] <= SIZEB && (Q[Y] == SIZEA || Q[X] == 0 || A[Q[Y]] > B[Q[X]-1])) {
+		if (Q[Y] >= 0 && Q[X] <= SIZEB && l) {
 			if (Q[X] == SIZEB || Q[Y] == 0 || A[Q[Y]-1] <= B[Q[X]]) {
 				if (Q[Y] < SIZEA && (Q[X] == SIZEB || A[Q[Y]] <= B[Q[X]]) ) {
 					M[i] = A[Q[Y]];
@@ -199,7 +199,6 @@ __global__ void pathBig_k(int *A, int *B, int *M, int *A_idx, int *B_idx){
 
 int main(){
 
-	// Allocation de la mémoire, remplissage du tableau
 	int *A = (int*) malloc(sizeof(int) * SIZEA);
 	for (int i = 0; i < SIZEA; i++){
 		A[i] = 2 * i;
