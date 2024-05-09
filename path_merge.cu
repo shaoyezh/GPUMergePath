@@ -110,7 +110,7 @@ __global__ void mergeBig_k(int *A, int *B, int *M, int *A_idx, int *B_idx){
 
 			while (1) {
 				int offset = (abs(K[Y] - P[Y]))/2;
-				int Q[2] = {K[X] + offset, K[Y] - offset};
+				int Q[2] = {K[X] + offset, K[Y] - offset}; // (j, i) (btop + offset, atop - offset)
 
 				if (Q[Y] >= 0 && Q[X] <= sizeBshared && (Q[Y] == sizeAshared || Q[X] == 0 || A_shared[Q[Y]] > B_shared[Q[X]-1])) {
 					if (Q[X] == sizeBshared || Q[Y] == 0 || A_shared[Q[Y]-1] <= B_shared[Q[X]]) {
@@ -172,7 +172,7 @@ __global__ void pathBig_k(int *A, int *B, int *M, int *A_idx, int *B_idx){
 		int offset = (abs(K[Y] - P[Y]))/2;  // (atop - abottom) / 2
 		int Q[2] = {K[X] + offset, K[Y] - offset};
 
-		if (Q[Y] >= 0 && Q[X] <= SIZEB && (Q[Y] == SIZEA || Q[X] == 0 || A[Q[Y]] > B[Q[X]-1])) {
+		if (Q[Y] >= 0 && Q[X] <= SIZEB) {
 			if (Q[X] == SIZEB || Q[Y] == 0 || A[Q[Y]-1] <= B[Q[X]]) {
 				if (Q[Y] < SIZEA && (Q[X] == SIZEB || A[Q[Y]] <= B[Q[X]]) ) {
 					M[i] = A[Q[Y]];
@@ -199,7 +199,6 @@ __global__ void pathBig_k(int *A, int *B, int *M, int *A_idx, int *B_idx){
 
 int main(){
 
-	// Allocation de la mémoire, remplissage du tableau
 	int *A = (int*) malloc(sizeof(int) * SIZEA);
 	for (int i = 0; i < SIZEA; i++){
 		A[i] = 2 * i;
